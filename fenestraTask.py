@@ -19,19 +19,35 @@ import psycopg2
 
 def download_new_files(bucket_name, local_download_path, downloaded_files_record):
     """
-    Downloads new files from a Google Cloud Storage bucket to a local directory.
+    Downloads new files from a Google Cloud Storage (GCS) bucket to a specified local directory.
 
-    This function checks for files in the specified GCS bucket that are not already recorded 
-    in the 'downloaded_files_record'. It downloads these new files to the 'local_download_path' 
-    and updates the record of downloaded files.
+    This function interacts with a GCS bucket to identify and download files that have not
+    previously been downloaded, as indicated by the 'downloaded_files_record'. 
+    It ensures that only new files from the GCS bucket are downloaded, avoiding re-downloading 
+    of files already present in the local directory. Once downloaded, the file names are added 
+    to the 'downloaded_files_record' to maintain an updated record of all downloaded files.
+
+    The function performs several key operations:
+    - Initializes a GCS client.
+    - Checks if the specified local download path exists, creating it if necessary.
+    - Loads a record of previously downloaded files from 'downloaded_files_record'.
+    - Lists all files in the specified GCS bucket and downloads those not in the downloaded record.
+    - Updates the downloaded files record with any new files downloaded during the operation.
+    - Prints a message if all files from the bucket have already been downloaded.
 
     Parameters:
-    bucket_name (str): The name of the GCS bucket to download files from.
-    local_download_path (str): The local file path where the files should be downloaded.
-    downloaded_files_record (str): The file path of the record that keeps track of downloaded files.
+    bucket_name (str): The name of the GCS bucket from which to download files.
+    local_download_path (str): The local file system path where new files should be downloaded.
+    downloaded_files_record (str): Path to a file that maintains a record of all previously 
+                                   downloaded files.
 
     Returns:
-    None
+    None: The function does not return a value but prints messages to the console indicating 
+          the status of file downloads.
+
+    The function relies on two helper functions:
+    - load_downloaded_files: Reads the 'downloaded_files_record' file and returns a set of downloaded file names.
+    - save_downloaded_files: Updates the 'downloaded_files_record' file with the names of new files downloaded.
     """
     # Initialize Google Cloud Storage client
     client = storage.Client()
@@ -85,14 +101,33 @@ def save_downloaded_files(downloaded_files, file_path):
 
 def process_and_ingest_files(directory_path, processed_files_record, table_name):
     """
-    Processes and ingests gzipped CSV files into a PostgreSQL database.
+    Processes gzipped CSV files from a specified directory and generates PostgreSQL COPY commands
+    for data ingestion. The function keeps track of processed files to avoid reprocessing.
+
+    This function iterates over gzipped CSV files in the given directory, generates PostgreSQL COPY
+    commands for each unprocessed file, and updates a record of processed files. If a file has been
+    processed previously (as recorded in the 'processed_files_record'), it is skipped. This ensures
+    efficient data ingestion by processing only new files. After processing, the function updates 
+    the record file with the names of newly processed files. If all files in the directory have 
+    already been processed, the function notifies the user.
 
     Parameters:
-    directory_path (str): Path to the directory containing gzipped CSV files.
-    processed_files_record (str): Path to the file recording processed file names.
-    table_name (str): Name of the PostgreSQL table to ingest data into.
+    directory_path (str): The file path to the directory containing gzipped CSV files.
+    processed_files_record (str): The file path to a text file that records the names of 
+                                  previously processed files.
+    table_name (str): The name of the PostgreSQL table into which the data will be ingested.
 
-    If all files in the directory have been processed, prints a message indicating that.
+    Returns:
+    None: The function prints the generated SQL COPY commands to the console and updates the
+          'processed_files_record' file. It does not return any value.
+
+    The function checks the 'processed_files_record' file to determine which files have been
+    processed in previous runs. It then processes only new files and updates the record
+    accordingly. This approach is particularly useful for recurring data ingestion tasks where
+    new files are periodically added to the directory.
+
+    Example usage:
+    >>> process_and_ingest_files('/path/to/csv/files', '/path/to/processed_record.txt', 'database_table')
     """
 
     # Load the record of processed files
